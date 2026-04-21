@@ -1,0 +1,25 @@
+# Environments
+.env
+.env.local
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Vector Database
+vectordb/
+chroma_db/
+*.db
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,10 @@
+# Q3 Financial Report Summary
+
+## Revenue Growth
+Our Q3 gross revenue increased by 14% compared to Q2, bringing the total quarterly revenue to $2.4 Million. This growth was primarily driven by the enterprise sales division closing the "MegaCorp" account.
+
+## Headcount & Expenses
+We hired 15 new employees in Q3, focusing mostly on the Engineering and Sales departments. Total operational expenses increased by 6%, which is well within our projected safety margins.
+
+## Future Outlook
+Based on the current trajectory, we expect Q4 revenue to surpass $3 Million, provided that the new product suite launches on schedule in late November.

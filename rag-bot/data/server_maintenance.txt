@@ -1,0 +1,10 @@
+# Server Maintenance Procedures
+
+## Emergency Contacts
+If the production server goes down outside of normal business hours, immediately page the Lead System Administrator, Sarah Jenkins, at 555-0198. Do NOT attempt to restart the database cluster without her explicit authorization.
+
+## Scheduled Downtime
+Routine server maintenance is scheduled for the first Sunday of every month at 2:00 AM EST. Expected downtime during this window is approximately 45 minutes.
+
+## Backup Rotation
+Full backups are performed weekly on Friday nights. Incremental backups are executed every 12 hours. All backup images are stored in the redundant AWS S3 Glacier buckets for compliance purposes.

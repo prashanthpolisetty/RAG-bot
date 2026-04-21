@@ -1,0 +1,12 @@
+# Project Apollo Status Report
+
+## Overview
+Project Apollo is our internal initiative to migrate older legacy servers to a cloud-based Kubernetes environment. The total approved budget for this project is $450,000.
+
+## Timelines
+* Phase 1 (Audit): Completed in Q1.
+* Phase 2 (Migration): Currently in progress. Expected completion by August 15th.
+* Phase 3 (Testing): Simulated load tests scheduled for September 1st.
+
+## Known Blockers
+There is currently a 2-week delay in Phase 2 due to a severe shortage of DevOps engineers available to write the migration scripts.
