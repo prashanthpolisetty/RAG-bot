@@ -1,19 +1,41 @@
 import os
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from sentence_transformers import SentenceTransformer
 from utils.ingestion import process_directory
+
+# Suppress ChromaDB telemetry noise
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["CHROMA_TELEMETRY"] = "False"
 
 CHROMA_DB_DIR = "./vectordb"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+
+
+class LocalEmbeddings(Embeddings):
+    """
+    Custom embeddings class using SentenceTransformer directly,
+    bypassing LangChain's HuggingFaceEmbeddings wrapper which
+    is incompatible with newer PyTorch versions (meta tensor issue).
+    """
+    def __init__(self, model_name: str):
+        self.model = SentenceTransformer(model_name, device="cpu")
+
+    def embed_documents(self, texts: list[str]) -> list[list[float]]:
+        return self.model.encode(texts, show_progress_bar=False, convert_to_numpy=True).tolist()
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.model.encode(text, show_progress_bar=False, convert_to_numpy=True).tolist()
+
 
 _cached_embeddings = None
 
 def get_embeddings():
     global _cached_embeddings
     if _cached_embeddings is None:
-        _cached_embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+        _cached_embeddings = LocalEmbeddings(model_name=EMBEDDING_MODEL_NAME)
     return _cached_embeddings
 
 def build_vector_store(data_directory="./data"):
@@ -27,7 +49,7 @@ def build_vector_store(data_directory="./data"):
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=700,
         chunk_overlap=100,
-        separators=["\\n\\n", "\\n", ".", " ", ""]
+        separators=["\n\n", "\n", ".", " ", ""]
     )
     
     docs = []

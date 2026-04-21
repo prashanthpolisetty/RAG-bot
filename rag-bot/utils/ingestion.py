@@ -14,12 +14,12 @@ def ingest_file(file_path):
         for page in reader.pages:
             t = page.extract_text()
             if t:
-                text += t + "\\n"
+                text += t + "\n"
     elif ext == '.docx':
         doc = DocxDocument(file_path)
         for para in doc.paragraphs:
             if para.text:
-                text += para.text + "\\n"
+                text += para.text + "\n"
     else:
         raise ValueError(f"Unsupported file format: {ext}")
     return text
