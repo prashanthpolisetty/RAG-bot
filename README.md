@@ -58,7 +58,7 @@ This project requires one API key to utilize the Gemini LLM for answering querie
 Rename the provided `.env.example` file to `.env` and configure your key inside.
 **CRITICAL**: *Never commit your `.env` file to Git. Ensure `.gitignore` is active.*
 ```env
-GEMINI_API_KEY=AIzaSy...
+GEMINI_API_KEY=<YOUR_API_KEY>
 ```
 
 ### 7. Example Queries
