@@ -35,7 +35,7 @@ The system follows a standard RAG workflow optimized for high efficiency:
 ### 5. Setup Instructions
 1. Clone this repository locally.
    ```bash
-   git clone <repo_url>
+   git clone https://github.com/prashanthpolisetty/RAG-bot.git
    cd rag-bot
    ```
 2. Create and activate a virtual environment (Recommended).
