@@ -47,7 +47,10 @@ def get_working_model() -> str:
 
     try:
         _available_models = [m.name.replace("models/", "") for m in genai.list_models()
-                     if "generateContent" in m.supported_generation_methods]
+                     if "generateContent" in m.supported_generation_methods
+                     and "-tts" not in m.name.lower()
+                     and "gemma" not in m.name.lower()
+                     and "lyria" not in m.name.lower()]
         print(f"[RAG Bot] Available Gemini models: {_available_models}")
 
         for preferred in GEMINI_MODEL_PREFERENCE:
@@ -70,18 +73,23 @@ def get_working_model() -> str:
 
 
 def call_gemini(prompt_text: str) -> str:
-    """Call Gemini using the official SDK. Cycles through all models on 429 before Ollama fallback."""
-    global _working_model
+    """Call Gemini using the official SDK. Cycles through all models on errors before Ollama fallback."""
+    global _working_model, _available_models
     if not _genai_configured:
         configure_genai()
 
-    # Build ordered list: start from preferred working model, try all others after
-    all_models = _available_models if _available_models else [get_working_model()]
-    # Put the last working model first to avoid re-scanning on success
-    if _working_model and _working_model in all_models:
-        ordered = [_working_model] + [m for m in all_models if m != _working_model]
-    else:
-        ordered = all_models
+    # Ensure available models are loaded
+    if not _available_models:
+        get_working_model()
+
+    # Sort available models: preferred first (in preference order), then others
+    preferred_available = [m for m in GEMINI_MODEL_PREFERENCE if m in _available_models]
+    others_available = [m for m in _available_models if m not in GEMINI_MODEL_PREFERENCE]
+    ordered = preferred_available + others_available
+
+    # Put the last working model at the very beginning of the list to speed up subsequent requests
+    if _working_model and _working_model in ordered:
+        ordered = [_working_model] + [m for m in ordered if m != _working_model]
 
     last_error = None
     for model_name in ordered:
@@ -95,13 +103,14 @@ def call_gemini(prompt_text: str) -> str:
             return response.text
         except Exception as e:
             err_str = str(e)
-            if "429" in err_str or "quota" in err_str.lower():
-                print(f"[RAG Bot] 429 on '{model_name}', trying next model...")
-                last_error = err_str
-                _working_model = None
-                continue  # Try next model
-            else:
-                raise Exception(f"Gemini API error on '{model_name}': {err_str}")
+            # If it's a hard API key validation issue, raise it immediately
+            if "key" in err_str.lower() and ("valid" in err_str.lower() or "invalid" in err_str.lower() or "not found" in err_str.lower()):
+                raise Exception(f"Gemini API key error: {err_str}")
+                
+            print(f"[RAG Bot] Error on model '{model_name}': {err_str}. Trying next model...")
+            last_error = err_str
+            _working_model = None
+            continue  # Try next model
 
     # All Gemini models exhausted — try Ollama
     print("[RAG Bot] All Gemini models rate-limited, trying local Ollama fallback...")
@@ -134,6 +143,27 @@ def call_ollama(prompt_text: str) -> str:
     )
 
 
+def generate_queries(original_query: str) -> list[str]:
+    """Generate 2 alternative search keywords/phrases using Gemini to expand the search scope."""
+    prompt = f"""You are a search query expansion assistant.
+Given the user's search query, output exactly two alternative search terms, conceptual keywords, or synonyms that are likely to appear in related documents.
+Output ONLY the alternative search queries, one per line. Do not number them, and do not add any extra text or conversational filler.
+
+User query: "{original_query}"
+"""
+    try:
+        response_text = call_gemini(prompt)
+        queries = [original_query]
+        for line in response_text.strip().split("\n"):
+            cleaned = line.strip().strip("-*•").strip().strip('"').strip()
+            if cleaned and cleaned.lower() != original_query.lower():
+                queries.append(cleaned)
+        return list(dict.fromkeys(queries))[:3]
+    except Exception as e:
+        print(f"[RAG Bot] Query expansion failed: {e}")
+        return [original_query]
+
+
 _cached_vectorstore = None
 
 
@@ -148,18 +178,36 @@ def ask_question(query: str):
             embedding_function=get_embeddings()
         )
 
-    retriever = _cached_vectorstore.as_retriever(search_kwargs={"k": 5})
-    docs = retriever.invoke(query)
+    # Multi-query expansion to capture conceptually related chunks
+    expanded_queries = generate_queries(query)
+    print(f"[RAG Bot] Expanded queries for search: {expanded_queries}")
 
-    if not docs:
+    retriever = _cached_vectorstore.as_retriever(search_kwargs={"k": 8})
+    all_docs = []
+    seen_contents = set()
+
+    for eq in expanded_queries:
+        docs = retriever.invoke(eq)
+        for doc in docs:
+            content_hash = doc.page_content.strip()
+            if content_hash not in seen_contents:
+                seen_contents.add(content_hash)
+                all_docs.append(doc)
+
+    if not all_docs:
         return "I cannot answer this based on the provided documents (No relevant data found).", []
 
-    context_text = "\n\n---\n\n".join([doc.page_content for doc in docs])
+    context_text = "\n\n---\n\n".join([doc.page_content for doc in all_docs])
 
     formatted_prompt = f"""You are an AI assistant for a local Document Q&A Bot.
 Answer the question below based ONLY on the provided Context.
 If the context does not contain the answer, simply write: 'I cannot answer this based on the provided documents.'
 Do not rely on your general knowledge.
+
+Formatting Instructions (for successful answers):
+- Provide a clear, easy-to-understand explanation using simple analogies where helpful.
+- Structure your answer with bullet points and bold key terms to make it easily explainable.
+- Keep the language engaging, educational, and structured (e.g. Definition, How it works, Details).
 
 Context:
 {context_text}
@@ -173,7 +221,7 @@ Question:
     except Exception as e:
         answer = f"Error: {str(e)}"
 
-    sources = [{"source": doc.metadata.get("source"), "chunk": doc.metadata.get("chunk")} for doc in docs]
+    sources = [{"source": doc.metadata.get("source"), "chunk": doc.metadata.get("chunk")} for doc in all_docs]
     return answer, sources
 
 

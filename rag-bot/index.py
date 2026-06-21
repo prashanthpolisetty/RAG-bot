@@ -1,5 +1,5 @@
 import os
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
@@ -39,6 +39,22 @@ def get_embeddings():
     return _cached_embeddings
 
 def build_vector_store(data_directory="./data"):
+    # Release any cached vectorstore locks in the query module to allow deletion on Windows
+    import sys
+    if 'query' in sys.modules:
+        sys.modules['query']._cached_vectorstore = None
+    import gc
+    gc.collect()
+
+    # Clear existing vector database to prevent duplicate chunks from flooding search results
+    import shutil
+    if os.path.exists(CHROMA_DB_DIR):
+        print(f"Clearing existing vector database at {CHROMA_DB_DIR}...")
+        try:
+            shutil.rmtree(CHROMA_DB_DIR)
+        except Exception as e:
+            print(f"Warning: Could not clear database directory: {e}")
+
     print("Reading documents from /data...")
     raw_docs = process_directory(data_directory)
     if not raw_docs:
@@ -47,13 +63,18 @@ def build_vector_store(data_directory="./data"):
     
     # Chunking strategy
     text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=700,
-        chunk_overlap=100,
+        chunk_size=1000,
+        chunk_overlap=200,
         separators=["\n\n", "\n", ".", " ", ""]
     )
     
+    import json
     docs = []
+    scanned_files = []
     for filename, text in raw_docs:
+        if not text.strip():
+            scanned_files.append(filename)
+            continue
         chunks = text_splitter.split_text(text)
         for i, chunk in enumerate(chunks):
             doc = Document(page_content=chunk, metadata={"source": filename, "chunk": i})
@@ -69,6 +90,13 @@ def build_vector_store(data_directory="./data"):
         persist_directory=CHROMA_DB_DIR
     )
     vectorstore.persist()
+    
+    # Save scanned/empty file warnings
+    os.makedirs(CHROMA_DB_DIR, exist_ok=True)
+    warnings_path = os.path.join(CHROMA_DB_DIR, "scanned_warnings.json")
+    with open(warnings_path, "w", encoding="utf-8") as f:
+        json.dump(scanned_files, f, indent=4)
+        
     print(f"Vector DB successfully updated and saved in {CHROMA_DB_DIR}.")
     return vectorstore
 
