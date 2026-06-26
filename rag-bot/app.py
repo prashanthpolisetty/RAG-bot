@@ -5,7 +5,7 @@ import os
 import json
 
 # Set up page configurations
-st.set_page_config(page_title="RAG Pipeline Bot", page_icon="🤖", layout="wide")
+st.set_page_config(page_title="RAG Pipeline Bot", page_icon="🤖", layout="centered")
 
 # Inject premium CSS for visual excellence
 st.markdown("""
@@ -95,11 +95,16 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 📤 Upload New Documents")
     
+    # Track a dynamic key to reset the file uploader after successful ingestion
+    if "uploader_key" not in st.session_state:
+        st.session_state.uploader_key = 0
+
     uploaded_files = st.file_uploader(
         "Upload PDF, TXT, DOCX, or Image files",
         accept_multiple_files=True,
         type=['txt', 'pdf', 'docx', 'png', 'jpg', 'jpeg'],
-        label_visibility="collapsed"
+        label_visibility="collapsed",
+        key=f"uploader_{st.session_state.uploader_key}"
     )
     
     if st.button("Build Vector Index", use_container_width=True):
@@ -120,6 +125,7 @@ with st.sidebar:
                     # Clear query cache and reset conversation on database rebuild
                     st.cache_data.clear()
                     st.session_state.messages = []
+                    st.session_state.uploader_key += 1  # Increment key to reset the file uploader widget
                     st.success("Database successfully updated and re-indexed!")
                     st.rerun()
                 else:
