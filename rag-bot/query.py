@@ -221,7 +221,7 @@ Question:
     except Exception as e:
         answer = f"Error: {str(e)}"
 
-    sources = [{"source": doc.metadata.get("source"), "chunk": doc.metadata.get("chunk")} for doc in all_docs]
+    sources = [{"source": doc.metadata.get("source"), "chunk": doc.metadata.get("chunk"), "content": doc.page_content} for doc in all_docs]
     return answer, sources
 
 

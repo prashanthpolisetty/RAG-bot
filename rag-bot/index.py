@@ -62,7 +62,6 @@ def build_vector_store(data_directory="./data"):
         try:
             # We initialize a temporary vector store using the existing database and delete the collection.
             # This resets the data without moving/deleting SQLite files that may be open in other threads.
-            from langchain_community.vectorstores import Chroma
             temp_db = Chroma(
                 persist_directory=CHROMA_DB_DIR,
                 embedding_function=get_embeddings()
