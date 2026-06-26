@@ -1,5 +1,7 @@
 # Document Q&A Bot (RAG Pipeline)
 
+**Live Demo**: [ragbotq.streamlit.app](https://ragbotq.streamlit.app/)
+
 A highly resilient Retrieval-Augmented Generation (RAG) chatbot designed to accurately answer questions strictly based on uploaded documents. By strategically offloading embedding generation to a local lightweight model and utilizing the Gemini API exclusively for fast question answering, the bot avoids common rate-limit crashes and seamlessly handles diverse document formats (TXT, PDF, DOCX) via an interactive Streamlit UI. 
 
 ---

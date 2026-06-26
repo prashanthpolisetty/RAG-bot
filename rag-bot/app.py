@@ -27,8 +27,11 @@ with st.sidebar:
                     
         with st.spinner("Analyzing UI files and embedding into ChromaDB..."):
             try:
-                build_vector_store()
-                st.success("Documents successfully processed and indexed!")
+                db = build_vector_store()
+                if db is not None:
+                    st.success("Documents successfully processed and indexed!")
+                else:
+                    st.error("No documents were found or successfully processed. Please make sure files are uploaded.")
             except Exception as e:
                 st.error(f"Error indexing: {e}")
 
