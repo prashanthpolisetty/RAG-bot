@@ -39,21 +39,46 @@ def get_embeddings():
     return _cached_embeddings
 
 def build_vector_store(data_directory="./data"):
-    # Release any cached vectorstore locks in the query module to allow deletion on Windows
+    # Release any cached vectorstore locks and explicitly close the client connections
     import sys
     if 'query' in sys.modules:
-        sys.modules['query']._cached_vectorstore = None
+        q_mod = sys.modules['query']
+        if hasattr(q_mod, '_cached_vectorstore') and q_mod._cached_vectorstore is not None:
+            print("[RAG Bot] Closing cached vectorstore client...")
+            try:
+                if hasattr(q_mod._cached_vectorstore, '_client') and hasattr(q_mod._cached_vectorstore._client, 'close'):
+                    q_mod._cached_vectorstore._client.close()
+            except Exception as e:
+                print(f"[RAG Bot] Error closing client: {e}")
+            q_mod._cached_vectorstore = None
+            
     import gc
     gc.collect()
 
-    # Clear existing vector database to prevent duplicate chunks from flooding search results
-    import shutil
+    # Reset/clear existing vector database using the Chroma API first to avoid file-locking / DBMOVED errors.
+    # If the database directory exists, we delete the collection to empty it, rather than deleting the SQLite file from disk.
     if os.path.exists(CHROMA_DB_DIR):
-        print(f"Clearing existing vector database at {CHROMA_DB_DIR}...")
+        print(f"Clearing existing database at {CHROMA_DB_DIR}...")
         try:
-            shutil.rmtree(CHROMA_DB_DIR)
+            # We initialize a temporary vector store using the existing database and delete the collection.
+            # This resets the data without moving/deleting SQLite files that may be open in other threads.
+            from langchain_community.vectorstores import Chroma
+            temp_db = Chroma(
+                persist_directory=CHROMA_DB_DIR,
+                embedding_function=get_embeddings()
+            )
+            temp_db.delete_collection()
+            if hasattr(temp_db, '_client') and hasattr(temp_db._client, 'close'):
+                temp_db._client.close()
+            print("Successfully cleared collection using Chroma API.")
         except Exception as e:
-            print(f"Warning: Could not clear database directory: {e}")
+            print(f"Warning: Could not clear database using Chroma API: {e}. Falling back to folder deletion.")
+            # Fallback to rmtree if the Chroma API deletion fails
+            import shutil
+            try:
+                shutil.rmtree(CHROMA_DB_DIR)
+            except Exception as re:
+                print(f"Warning: Fallback rmtree also failed: {re}")
 
     print("Reading documents from /data...")
     raw_docs = process_directory(data_directory)
@@ -90,6 +115,13 @@ def build_vector_store(data_directory="./data"):
         persist_directory=CHROMA_DB_DIR
     )
     vectorstore.persist()
+    
+    # Close the vectorstore client to release SQLite locks immediately
+    try:
+        if hasattr(vectorstore, '_client') and hasattr(vectorstore._client, 'close'):
+            vectorstore._client.close()
+    except Exception as e:
+        print(f"Warning closing database client after indexing: {e}")
     
     # Save scanned/empty file warnings
     os.makedirs(CHROMA_DB_DIR, exist_ok=True)
